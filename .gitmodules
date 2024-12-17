@@ -1,0 +1,3 @@
+[submodule "lib/ESP32_HassIO"]
+	path = lib/ESP32_HassIO
+	url = https://github.com/MarcoGeraldi/ESP32_HassIO.git
