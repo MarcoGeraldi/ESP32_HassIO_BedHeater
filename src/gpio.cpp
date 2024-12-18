@@ -4,9 +4,9 @@
 /*                                  Variables                                 */
 /* -------------------------------------------------------------------------- */
 // Constants
-const int debounceDelay = 50;         // Debounce delay in milliseconds
+const int debounceDelay = 10;         // Debounce delay in milliseconds
 const int longPressDuration = 300;    // Duration for long press in milliseconds
-const int doublePressThreshold = 150; // Maximum delay between presses for a double press
+const int doublePressThreshold = 20; // Maximum delay between presses for a double press
 
 // Button pins (update according to your setup)
 int buttonPins[numButtons] = {BTN_UP_PIN, BTN_DOWN_PIN, BTN_CNTR_PIN};
@@ -22,7 +22,6 @@ unsigned long stateStartTime[numButtons] = {0};
 unsigned long pressStartTime[numButtons] = {0};
 bool lastButtonState[numButtons] = {false};
 bool sm_lastBtnState[numButtons] = {false};
-
 
 
 void handleButtonState(int buttonIndex, unsigned long currentTime)
@@ -126,8 +125,12 @@ void handleButtonState(int buttonIndex, unsigned long currentTime)
 
 void gpio_init()
 {
+    /* --------------------- Set button pins as input pullup -------------------- */
     for (int i = 0; i < numButtons; i++)
     {
         pinMode(buttonPins[i], INPUT_PULLUP);
     }
+
+    /* -------------------- Initialize SSR control output pin ------------------- */
+    //pinMode(SSR_PIN, OUTPUT);
 }

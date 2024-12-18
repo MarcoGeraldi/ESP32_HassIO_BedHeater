@@ -35,7 +35,7 @@ void deviceUpdate()
   }
 
   // Update the OLED display
-  updateDisplay(atof(TemperatureSensor->getStatus().c_str()), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
+  updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
 }
 
 /* ------------------- Increment Timer to schedule events ------------------- */
@@ -163,14 +163,22 @@ void loop()
   /*                                 IoT Device                                 */
   /* -------------------------------------------------------------------------- */
 
+  /* --------------------------------- 1s task -------------------------------- */
   if (timerCounter % (1000 / 10) == 0)
+  {
+    /* ----------------------------- Update Display ----------------------------- */
+    updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
+    TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
+    deviceUpdate();
+  }
+
+  /* -------------------------------- 10s Task -------------------------------- */
+  if (timerCounter % (10000 / 10) == 0)
   { // 1000ms / 10ms
 
-    TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
-
-    deviceUpdate();
-
-    relayOn = !relayOn; // Toggle relay state
+    /* ----------------------- Update Temperature Reading ----------------------- */
+    //TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
+    //deviceUpdate();
   }
 
   /* ------------------------- check for any button presses event ------------------------ */
@@ -184,7 +192,7 @@ void loop()
       int actualSetpointModule5 = actualSetpoint % 5;
 
       /* ------------------ Up button pressed - Increase Setpoint ----------------- */
-      if (0 == i && singlePresses[i])
+      if (0 == i && singlePresses[i] || doublePresses[i])
       {
         if (0 == actualSetpointModule5)
           actualSetpoint += 5; // setpoint is already a multiple of 5
@@ -193,13 +201,15 @@ void loop()
       }
 
       /* ----------------- DOWN Button Pressed - Decrease Setpoint ---------------- */
-      if (1 == i && singlePresses[i])
+      if (1 == i && singlePresses[i] || doublePresses[i])
       {
         if (0 == actualSetpointModule5)
           actualSetpoint -= 5; // setpoint is already a multiple of 5
         else
           actualSetpoint -= actualSetpointModule5; // set to the next multiple of 5
       }
+      /* ----------------------------- Limit Setpoint ----------------------------- */
+      actualSetpoint = constrain(actualSetpoint, SETPOINT_MIN, SETPOINT_MAX);
 
       // Check if setpoint has changed
       if (actualSetpoint != atoi(TemperatureSetpoint->getStatus().c_str()))
@@ -227,12 +237,15 @@ void loop()
 void IoT_device_init()
 {
   /* --------------------------- Configure entities --------------------------- */
-  TemperatureSetpoint-> setMin(SETPOINT_MIN);
-  TemperatureSetpoint-> setMax(SETPOINT_MAX);
-
+  TemperatureSetpoint->setMin(SETPOINT_MIN);
+  TemperatureSetpoint->setMax(SETPOINT_MAX);
+  
   /* ---------------- add all entities to the iot device object --------------- */
   myIoTdevice.addEntity(TemperatureSensor);
   myIoTdevice.addEntity(TemperatureSetpoint);
+  myIoTdevice.addEntity(Heater);
+
+  Heater->setStatus(false);
 
   Serial.println("Device Init");
 
@@ -266,6 +279,18 @@ void MQTT_callback(char *topic, byte *message, unsigned int length)
   if (String(topic) == TemperatureSetpoint->getCommandTopic())
   {
     TemperatureSetpoint->setStatus(messageTemp);
+  }
+
+  if (String(topic) == Heater->getCommandTopic())
+  {
+    if (messageTemp == Heater->getPayloadOn())
+    {
+      Heater->setStatus(true);
+    }
+    else
+    {
+      Heater->setStatus(false);
+    }
   }
 
   /* -------------------------- update device status -------------------------- */

@@ -65,7 +65,7 @@ Device myIoTdevice;
 
 auto TemperatureSensor = std::make_shared<Sensor>("Temperature", _HASSIO_DEVICE_CLASS_SENSOR_TEMPERATURE);
 auto TemperatureSetpoint = std::make_shared<Number>("Setpoint", _HASSIO_DEVICE_CLASS_NUMBER_TEMPERATURE);
-
+auto Heater = std::make_shared<Switch>("Heater");
 /* -------------------------------------------------------------------------- */
 /*                               Data Structures                              */
 /* -------------------------------------------------------------------------- */
