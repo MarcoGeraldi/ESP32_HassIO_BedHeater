@@ -13,29 +13,17 @@
 #include <WebServer_WT32_ETH01.h>
 
 /* ----------------------- Temperature Sensor Library ----------------------- */
-#include <Wire.h>
-#include <Adafruit_MAX31865.h>
-
+#include <temperature.h>
 /* ------------------------ I2C OLED Display Library ------------------------ */
-#include <Adafruit_SSD1306.h>
+#include <display.h>
+/* -------------------------------- GPIO Pins ------------------------------- */
+#include "gpio.h"
 
 /* -------------------------------------------------------------------------- */
 /*                                   Macros                                   */
 /* -------------------------------------------------------------------------- */
 #define DEBUG_ETHERNET_WEBSERVER_PORT Serial
 #define _ETHERNET_WEBSERVER_LOGLEVEL_ 3
-
-/* --------------------------- Temperature Sensor --------------------------- */
-#define RREF      430.0 // The value of the Rref resistor. Use 430.0 for PT100 and 4300.0 for PT1000
-#define RNOMINAL  100.0 // The 'nominal' 0-degrees-C resistance of the sensor 100.0 for PT100, 1000.0 for PT1000
-
-/* ----------------------------- Display Macros ----------------------------- */
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-
-#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
-
 
 /* -------------------------------------------------------------------------- */
 /*                                Enumerations                                */
@@ -72,21 +60,11 @@ PubSubClient  eth_mqttClient(ethClient);
 hw_timer_t *timer = NULL;
 unsigned long timerCounter = 0;
 
-/* --------------------------- Temperature Sensor --------------------------- */
-Adafruit_MAX31865 thermo  = Adafruit_MAX31865(27, 14, 12, 13);
-
-
-
-
-/* ------------------------------ OLED Display ------------------------------ */
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
 /* ------------------------------- IoT Device ------------------------------- */
 Device myIoTdevice;
 
 auto TemperatureSensor = std::make_shared<Sensor>("Temperature", _HASSIO_DEVICE_CLASS_SENSOR_TEMPERATURE);
- 
-
+auto TemperatureSetpoint = std::make_shared<Number>("Setpoint", _HASSIO_DEVICE_CLASS_NUMBER_TEMPERATURE);
 
 /* -------------------------------------------------------------------------- */
 /*                               Data Structures                              */

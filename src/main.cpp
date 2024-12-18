@@ -33,10 +33,14 @@ void deviceUpdate()
   {
     Serial.println("Client disconnected");
   }
+
+  // Update the OLED display
+  updateDisplay(atof(TemperatureSensor->getStatus().c_str()), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
 }
 
 /* ------------------- Increment Timer to schedule events ------------------- */
-void IRAM_ATTR onTimer() {
+void IRAM_ATTR onTimer()
+{
   timerCounter++;
 }
 
@@ -52,7 +56,7 @@ void setup()
   Serial.println(" with " + String(SHIELD_TYPE));
   Serial.println(WEBSERVER_WT32_ETH01_VERSION);
 
-#ifdef ETHERNET_ENABLE 
+#ifdef ETHERNET_ENABLE
   /* --------------------------- initialize Ethernet -------------------------- */
   // To be called before ETH.begin()
   WT32_ETH01_onEvent();
@@ -60,7 +64,7 @@ void setup()
   ETH.begin(ETH_PHY_ADDR, ETH_PHY_POWER);
 
   WT32_ETH01_waitForConnect();
-#endif 
+#endif
 
   /* -------------------------- Initialize Parameters ------------------------- */
   preferences.begin("my-app", false);
@@ -78,13 +82,21 @@ void setup()
   IoT_device_init();
 
   /* ---------------------- Initialize Temperature Sensor --------------------- */
-  thermo.begin(MAX31865_3WIRE);  // set to 2WIRE or 4WIRE as necessary
-  
+  temp_init();
+
+  /* -------------------------- initialize gpio pins -------------------------- */
+  gpio_init();
+
   /* --------------------------- Initialize Display --------------------------- */
-  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
+  {
     Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
+    for (;;)
+      ; // Don't proceed, loop forever
   }
+
+  // Clear the buffer
+  display.clearDisplay();
 
   /* ------------------------------- Start Timer ------------------------------ */
   timer = timerBegin(0, 80, true);
@@ -92,78 +104,8 @@ void setup()
   timerAlarmWrite(timer, 10000, true); // 10ms timer
   timerAlarmEnable(timer);
 
-  // Clear the buffer
-  display.clearDisplay();
-
   // Allow the hardware to sort itself out
   delay(1500);
-}
-
-// Text size parameters
-#define SET_LABEL_TEXT_SIZE 1      // Text size for "SET:"
-#define TEMP_TEXT_SIZE 4           // Text size for the temperature reading
-#define SETPOINT_TEXT_SIZE 2       // Text size for the setpoint value
-
-
-// Simulated variables
-bool relayOn = true;       // Relay state (true = on, false = off)
-
-void updateDisplay(double _temperature, int _setpoint) {
-  // Clear the previous display contents
-  display.clearDisplay();
-
-  // Draw a rounded border around the screen
-  display.drawRoundRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 10, SSD1306_WHITE);
-
-  // Draw a horizontal line to separate temperature and setpoint sections (lowered position)
-  display.drawLine(0, SCREEN_HEIGHT / 2 + 10, SCREEN_WIDTH, SCREEN_HEIGHT / 2 + 10, SSD1306_WHITE);
-
-  // Display the temperature centered with padding above it and larger text
-  display.setTextSize(TEMP_TEXT_SIZE);  // Larger text size for temperature
-  display.setTextColor(SSD1306_WHITE);
-
-  // Calculate the width of the text to properly center it
-  String tempString = String(_temperature, 1);  // Convert temperature to string with 1 decimal place
-  int textWidth = tempString.length() * 6 * TEMP_TEXT_SIZE;  // Each character width is approximately 6px in size
-  int tempX = 8; //(SCREEN_WIDTH - textWidth) / 2;  // Center horizontally based on text width
-  int tempY = (SCREEN_HEIGHT / 2) - 25;        // Adjust vertical position slightly higher
-  display.setCursor(tempX, tempY);
-  display.print(_temperature, 1);  // Print temperature with 1 decimal place
-  
-  // Add "°C" after the temperature 
-  display.drawCircle(108, 8, 3, SSD1306_WHITE);  // Draw a small circle (3px radius)
-  display.setTextSize(2);  // Medium text size for the unit
-  display.setCursor(113, 8);  // Position after the circle
-  display.print("C");  // Print the unit (Celsius)
-
-  // Display "SET:" in the bottom left corner with smaller text size
-  display.setTextSize(SET_LABEL_TEXT_SIZE);  // Text size for "SET:"
-  display.setCursor(5, SCREEN_HEIGHT - 18);  // Position at the bottom-left
-  display.print("SET:");
-
-  // Display the setpoint in the bottom left corner, below the horizontal line with larger text
-  display.setTextSize(SETPOINT_TEXT_SIZE);  // Larger text size for setpoint
-  display.setCursor(35, SCREEN_HEIGHT / 2 + 15);  // Position just below the line
-  display.print(_setpoint);  // Display setpoint as an integer
-
-  // Add "°C" after the setpoint
-  display.drawCircle(65, SCREEN_HEIGHT / 2 + 15, 3, SSD1306_WHITE);  // Draw a small circle (3px radius)
-
-  // Add "C" after the circle to indicate Celsius
-  display.setTextSize(2);  // Medium text size for the unit
-  display.setCursor(70, SCREEN_HEIGHT / 2 + 15);  // Position after the circle
-  display.print("C");  // Print the unit (Celsius)
-
-
-  // Display relay state (white dot or circle in bottom right)
-  if (relayOn) {
-    display.fillCircle(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10, 5, SSD1306_WHITE);  // Glowing dot effect
-  } else {
-    display.drawCircle(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10, 5, SSD1306_WHITE);  // Hollow circle
-  }
-
-  // Update the display
-  display.display();
 }
 
 void loop()
@@ -183,7 +125,7 @@ void loop()
   {
     if (!eth_mqttClient.connected())
     {
-      if (timerCounter % (5000/10) == 0)
+      if (timerCounter % (5000 / 10) == 0)
       {
         Serial.println("Trying to reconnect via Ethernet..");
         MQTT_reconnect(eth_mqttClient);
@@ -194,7 +136,7 @@ void loop()
     }
     else
     {
-      //Nothing to do 
+      // Nothing to do
     }
   }
   else if (WL_CONNECTED == WiFi.status())
@@ -202,7 +144,7 @@ void loop()
     /* --------------------- Try to reconnect to MQTT Broker -------------------- */
     if (!wifi_mqttClient.connected())
     {
-      if (timerCounter % (5000/10) == 0)
+      if (timerCounter % (5000 / 10) == 0)
       {
         Serial.println("Trying to reconnect via WiFi..");
         MQTT_reconnect(wifi_mqttClient);
@@ -213,34 +155,84 @@ void loop()
     }
     else
     {
-      //Nothing to do 
+      // Nothing to do
     }
   }
 
-  if (timerCounter % (1000/10) == 0)  { //1000ms / 10ms
+  /* -------------------------------------------------------------------------- */
+  /*                                 IoT Device                                 */
+  /* -------------------------------------------------------------------------- */
+
+  if (timerCounter % (1000 / 10) == 0)
+  { // 1000ms / 10ms
 
     TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
-    
+
     deviceUpdate();
-    
-    // Update the OLED display
-    updateDisplay(atof(TemperatureSensor->getStatus().c_str()), 25);
 
-    relayOn = !relayOn;  // Toggle relay state
-
+    relayOn = !relayOn; // Toggle relay state
   }
 
+  /* ------------------------- check for any button presses event ------------------------ */
+  for (int i = 0; i < numButtons; i++)
+  {
+    handleButtonState(i, millis());
+
+    if (singlePresses[i] || doublePresses[i] || longPresses[i] || longReleases[i])
+    {
+      int actualSetpoint = atoi(TemperatureSetpoint->getStatus().c_str());
+      int actualSetpointModule5 = actualSetpoint % 5;
+
+      /* ------------------ Up button pressed - Increase Setpoint ----------------- */
+      if (0 == i && singlePresses[i])
+      {
+        if (0 == actualSetpointModule5)
+          actualSetpoint += 5; // setpoint is already a multiple of 5
+        else
+          actualSetpoint += (5 - actualSetpointModule5); // set to the next multiple of 5
+      }
+
+      /* ----------------- DOWN Button Pressed - Decrease Setpoint ---------------- */
+      if (1 == i && singlePresses[i])
+      {
+        if (0 == actualSetpointModule5)
+          actualSetpoint -= 5; // setpoint is already a multiple of 5
+        else
+          actualSetpoint -= actualSetpointModule5; // set to the next multiple of 5
+      }
+
+      // Check if setpoint has changed
+      if (actualSetpoint != atoi(TemperatureSetpoint->getStatus().c_str()))
+      {
+        TemperatureSetpoint->setStatus(actualSetpoint); // update setpoint
+        deviceUpdate();
+      }
+    }
+
+    singlePresses[i] = false;
+    doublePresses[i] = false;
+    longPresses[i] = false;
+    longReleases[i] = false;
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /* -------------------------------------------------------------------------- */
+  /* -------------------------------------------------------------------------- */
+
+  /* -------------------------- Client loop functions ------------------------- */
   eth_mqttClient.loop();
   wifi_mqttClient.loop();
 }
 
 void IoT_device_init()
 {
+  /* --------------------------- Configure entities --------------------------- */
+  TemperatureSetpoint-> setMin(SETPOINT_MIN);
+  TemperatureSetpoint-> setMax(SETPOINT_MAX);
 
   /* ---------------- add all entities to the iot device object --------------- */
   myIoTdevice.addEntity(TemperatureSensor);
-
-
+  myIoTdevice.addEntity(TemperatureSetpoint);
 
   Serial.println("Device Init");
 
@@ -271,25 +263,10 @@ void MQTT_callback(char *topic, byte *message, unsigned int length)
 
   // If a message is received on the topic esp32/output, you check if the message is either "on" or "off".
   // Changes the output state according to the message
-  /*if (String(topic) == mySwitch->getCommandTopic())
+  if (String(topic) == TemperatureSetpoint->getCommandTopic())
   {
-
-    if (messageTemp == mySwitch->getPayloadOn())
-    {
-      digitalWrite(LED, HIGH);
-      myAction->setStatus("led_on");
-    }
-    else if (mySwitch->getPayloadOff())
-    {
-      digitalWrite(LED, LOW);
-      myAction->setStatus("led_off");
-    }
+    TemperatureSetpoint->setStatus(messageTemp);
   }
-
-  if (String(topic) == myLight->getCommandTopic())
-  {
-    myLight->setStatus(messageTemp);
-  }*/
 
   /* -------------------------- update device status -------------------------- */
   deviceUpdate();
@@ -332,7 +309,6 @@ void MQTT_init()
   wifi_mqttClient.setCallback(MQTT_callback);
   eth_mqttClient.setServer(custom_mqtt_server.getValue(), 1883);
   eth_mqttClient.setCallback(MQTT_callback);
-
 }
 
 void wm_init(bool _reset)
@@ -409,4 +385,3 @@ bool randomBool()
 {
   return rand() % 2;
 }
-
