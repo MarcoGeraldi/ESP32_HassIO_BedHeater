@@ -6,6 +6,8 @@
 /* -------------------------------------------------------------------------- */
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
+ 
+#include "error.h"
 
 /* -------------------------------------------------------------------------- */
 /*                                   Macros                                   */
@@ -32,6 +34,7 @@
 // Simulated variables
 extern bool relayOn;       // Relay state (true = on, false = off)
 
+
 /* -------------------------------------------------------------------------- */
 /*                               Data Structures                              */
 /* -------------------------------------------------------------------------- */
@@ -40,10 +43,10 @@ extern Adafruit_SSD1306 display;
 /*                                  Typedefs                                  */
 /* -------------------------------------------------------------------------- */
 
-
 /* -------------------------------------------------------------------------- */
 /*                                  Functions                                 */
 /* -------------------------------------------------------------------------- */
-void updateDisplay(double _temperature, int _setpoint, bool _output);
+error_t displayInit();
+void updateDisplay(double _temperature, int _setpoint, bool _output, error_t _errorCode);
 
 #endif

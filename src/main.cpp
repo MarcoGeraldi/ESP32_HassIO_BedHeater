@@ -31,11 +31,11 @@ void deviceUpdate()
   }
   else
   {
-    Serial.println("Client disconnected");
+    //Serial.println("Client disconnected");
   }
 
   // Update the OLED display
-  updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
+  updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), digitalRead(SSR_PIN), errorCode);
 }
 
 /* ------------------- Increment Timer to schedule events ------------------- */
@@ -82,21 +82,15 @@ void setup()
   IoT_device_init();
 
   /* ---------------------- Initialize Temperature Sensor --------------------- */
-  temp_init();
+  if (!temp_init())
+    errorCode = E01_SENSOR_ERROR;
 
   /* -------------------------- initialize gpio pins -------------------------- */
   gpio_init();
 
   /* --------------------------- Initialize Display --------------------------- */
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
-  {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ; // Don't proceed, loop forever
-  }
-
-  // Clear the buffer
-  display.clearDisplay();
+  if (!displayInit())
+    errorCode = E02_DISPLAY_ERROR;
 
   /* ------------------------------- Start Timer ------------------------------ */
   timer = timerBegin(0, 80, true);
@@ -128,7 +122,9 @@ void loop()
       if (timerCounter % (5000 / 10) == 0)
       {
         Serial.println("Trying to reconnect via Ethernet..");
-        MQTT_reconnect(eth_mqttClient);
+
+        if (!MQTT_reconnect(eth_mqttClient))
+          errorCode = E04_COMM_ERROR;
 
         if (eth_mqttClient.connected())
           wifi_mqttClient.disconnect();
@@ -146,8 +142,11 @@ void loop()
     {
       if (timerCounter % (5000 / 10) == 0)
       {
+
         Serial.println("Trying to reconnect via WiFi..");
-        MQTT_reconnect(wifi_mqttClient);
+
+        if (!MQTT_reconnect(wifi_mqttClient))
+          errorCode = E04_COMM_ERROR;
 
         if (wifi_mqttClient.connected())
           eth_mqttClient.disconnect();
@@ -166,19 +165,18 @@ void loop()
   /* --------------------------------- 1s task -------------------------------- */
   if (timerCounter % (1000 / 10) == 0)
   {
+    /* -------------------- Verify Temperature Sensore Faults ------------------- */
+    if (!verifySensor())
+      errorCode = E01_SENSOR_ERROR;
+
     /* ----------------------------- Update Display ----------------------------- */
-    updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
+    //updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
+
+    /* ------------------------ Update Temperature entity ----------------------- */
     TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
+
+    /* -------------------------- Send update to HassIO ------------------------- */
     deviceUpdate();
-  }
-
-  /* -------------------------------- 10s Task -------------------------------- */
-  if (timerCounter % (10000 / 10) == 0)
-  { // 1000ms / 10ms
-
-    /* ----------------------- Update Temperature Reading ----------------------- */
-    //TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
-    //deviceUpdate();
   }
 
   /* ------------------------- check for any button presses event ------------------------ */
@@ -214,17 +212,27 @@ void loop()
       // Check if setpoint has changed
       if (actualSetpoint != atoi(TemperatureSetpoint->getStatus().c_str()))
       {
+        /* ------------------------- Update Setpoint Entity ------------------------- */
         TemperatureSetpoint->setStatus(actualSetpoint); // update setpoint
+
+        /* -------------------------- Send update to HassIO ------------------------- */
         deviceUpdate();
       }
     }
 
-    singlePresses[i] = false;
-    doublePresses[i] = false;
-    longPresses[i] = false;
-    longReleases[i] = false;
+    /* ------------------------------- Reset Flags ------------------------------ */
+    singlePresses[i]  = false;
+    doublePresses[i]  = false;
+    longPresses[i]    = false;
+    longReleases[i]   = false;
   }
 
+  /* -------------------------- Check Heating enable -------------------------- */
+  if ((errorCode == E00_NO_ERROR || errorCode == E04_COMM_ERROR) && Heater->getStatus() == Heater->getPayloadOn()){
+    digitalWrite(SSR_PIN, HIGH);
+  } else {
+    digitalWrite(SSR_PIN, LOW);
+  }  
   /* -------------------------------------------------------------------------- */
   /* -------------------------------------------------------------------------- */
   /* -------------------------------------------------------------------------- */
@@ -239,7 +247,7 @@ void IoT_device_init()
   /* --------------------------- Configure entities --------------------------- */
   TemperatureSetpoint->setMin(SETPOINT_MIN);
   TemperatureSetpoint->setMax(SETPOINT_MAX);
-  
+
   /* ---------------- add all entities to the iot device object --------------- */
   myIoTdevice.addEntity(TemperatureSensor);
   myIoTdevice.addEntity(TemperatureSetpoint);
@@ -365,7 +373,7 @@ void wm_init(bool _reset)
   wm.setSaveParamsCallback(saveConfigCallback);
 }
 
-void MQTT_reconnect(PubSubClient &_client)
+error_t MQTT_reconnect(PubSubClient &_client)
 {
 
   /* ------------------------ Retrieve data from memory ----------------------- */
@@ -397,8 +405,11 @@ void MQTT_reconnect(PubSubClient &_client)
     {
       Serial.print("failed, rc=");
       Serial.print(_client.state());
+      return false;
     }
   }
+
+  return true;
 }
 
 int randomInt()

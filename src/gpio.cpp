@@ -132,5 +132,5 @@ void gpio_init()
     }
 
     /* -------------------- Initialize SSR control output pin ------------------- */
-    //pinMode(SSR_PIN, OUTPUT);
+    pinMode(SSR_PIN, OUTPUT);
 }

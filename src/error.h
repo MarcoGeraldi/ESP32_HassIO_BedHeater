@@ -1,22 +1,16 @@
-#ifndef _TEMPERATURE_H
-#define _TEMPERATURE_H
+#ifndef _ERROR_H
+#define _ERROR_H
+
 
 /* -------------------------------------------------------------------------- */
 /*                                Include Files                               */
 /* -------------------------------------------------------------------------- */
-#include <Wire.h>
-#include <Adafruit_MAX31865.h>
+
 
 /* -------------------------------------------------------------------------- */
 /*                                   Macros                                   */
 /* -------------------------------------------------------------------------- */
-#define RREF      430.0 // The value of the Rref resistor. Use 430.0 for PT100 and 4300.0 for PT1000
-#define RNOMINAL  100.0 // The 'nominal' 0-degrees-C resistance of the sensor 100.0 for PT100, 1000.0 for PT1000
 
-#define SETPOINT_MAX 50 
-#define SETPOINT_MIN 20
-#define OTP_PROTECTION 53
-#define SHUTDOWN_TIMEOUT 12 //hours
 
 /* -------------------------------------------------------------------------- */
 /*                                Enumerations                                */
@@ -31,7 +25,18 @@
 /* -------------------------------------------------------------------------- */
 /*                               Data Structures                              */
 /* -------------------------------------------------------------------------- */
-extern Adafruit_MAX31865 thermo;
+enum ErrorCode {
+    E00_NO_ERROR,
+    E01_SENSOR_ERROR,
+    E02_DISPLAY_ERROR,
+    E03_BUTTON_ERROR,
+    E04_COMM_ERROR,
+    E05_SETPOINT_ERROR,
+    E06_RELAY_ERROR,
+    E07_POWER_ERROR
+};
+
+extern ErrorCode errorCode;
 
 /* -------------------------------------------------------------------------- */
 /*                                  Typedefs                                  */
@@ -41,7 +46,6 @@ extern Adafruit_MAX31865 thermo;
 /* -------------------------------------------------------------------------- */
 /*                                  Functions                                 */
 /* -------------------------------------------------------------------------- */
-error_t temp_init();
-error_t verifySensor();
+
 
 #endif

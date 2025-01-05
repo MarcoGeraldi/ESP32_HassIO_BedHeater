@@ -18,6 +18,8 @@
 #include <display.h>
 /* -------------------------------- GPIO Pins ------------------------------- */
 #include "gpio.h"
+/* ---------------------------- Errors definition --------------------------- */
+#include "error.h"
 
 /* -------------------------------------------------------------------------- */
 /*                                   Macros                                   */
@@ -66,6 +68,7 @@ Device myIoTdevice;
 auto TemperatureSensor = std::make_shared<Sensor>("Temperature", _HASSIO_DEVICE_CLASS_SENSOR_TEMPERATURE);
 auto TemperatureSetpoint = std::make_shared<Number>("Setpoint", _HASSIO_DEVICE_CLASS_NUMBER_TEMPERATURE);
 auto Heater = std::make_shared<Switch>("Heater");
+
 /* -------------------------------------------------------------------------- */
 /*                               Data Structures                              */
 /* -------------------------------------------------------------------------- */
@@ -83,7 +86,7 @@ void saveConfigCallback();
 
 void MQTT_init();
 void MQTT_callback(char *topic, byte *message, unsigned int length);
-void MQTT_reconnect(PubSubClient &_client);
+error_t MQTT_reconnect(PubSubClient &_client);
 
 void IoT_device_init();
 int randomInt();
