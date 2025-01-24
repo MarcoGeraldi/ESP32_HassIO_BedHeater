@@ -9,8 +9,6 @@ const uint8_t wifiConnectedIcon[] PROGMEM = {
 	0x00, 0x00, 0x00
 };
 
-
-
 error_t displayInit()
 {
 
@@ -25,9 +23,25 @@ error_t displayInit()
   return true;
 }
 
-void displayTemperature(double _temperature)
+void displayTemperature(double _temperature,  error_t _errorCode)
 {
-  String tempString = String(_temperature, 1); // Convert temperature to string with 1 decimal place
+  String tempString;
+
+  if (_errorCode == E00_NO_ERROR || _errorCode == E04_COMM_ERROR){
+    tempString = String(_temperature, 1); // Convert temperature to string with 1 decimal place
+
+    // Add "°C" after the temperature
+    display.drawCircle(108, 8, 3, SSD1306_WHITE); // Draw a small circle (3px radius)
+    display.setTextSize(2);                       // Medium text size for the unit
+    display.setCursor(113, 8);                    // Position after the circle
+    display.print("C");                           // Print the unit (Celsius)
+
+  } else {
+    /* ------------------------------- Print Error ------------------------------ */
+    tempString = "ERR";    
+    if (_errorCode<10) tempString += "0";
+    tempString += String(_errorCode) ; // Convert temperature to string with 1 decimal place
+  }
 
   // Display the temperature centered with padding above it and larger text
   display.setTextSize(TEMP_TEXT_SIZE); // Larger text size for temperature
@@ -38,18 +52,12 @@ void displayTemperature(double _temperature)
   int tempX = 8;                                            //(SCREEN_WIDTH - textWidth) / 2;  // Center horizontally based on text width
   int tempY = (SCREEN_HEIGHT / 2) - 25;                     // Adjust vertical position slightly higher
   display.setCursor(tempX, tempY);
-  display.print(_temperature, 1); // Print temperature with 1 decimal place
-
-  // Add "°C" after the temperature
-  display.drawCircle(108, 8, 3, SSD1306_WHITE); // Draw a small circle (3px radius)
-  display.setTextSize(2);                       // Medium text size for the unit
-  display.setCursor(113, 8);                    // Position after the circle
-  display.print("C");                           // Print the unit (Celsius)
+  display.print(tempString); // Print temperature with 1 decimal place
 }
 
 void drawWifiIcon(bool isConnected) {
-    int x = 80; // X-coordinate (top-right corner)
-    int y = SCREEN_HEIGHT / 2 + 15;   // Y-coordinate (top-right corner)
+    int x = 87; // X-coordinate (top-right corner)
+    int y = SCREEN_HEIGHT / 2 + 13;   // Y-coordinate (top-right corner)
     
     if (isConnected) {
         display.drawBitmap(x, y, wifiConnectedIcon, 17, 17, WHITE);
@@ -91,18 +99,21 @@ void updateDisplay(double _temperature, int _setpoint, bool _output, error_t _er
   switch (_errorCode)
   {
   case E00_NO_ERROR:
-    displayTemperature(_temperature);
-    drawWifiIcon();
+    displayTemperature(_temperature,  _errorCode);
+    drawWifiIcon(true);
     break;
   case E04_COMM_ERROR:
-    displayTemperature(_temperature);
+    displayTemperature(_temperature, _errorCode);
+    drawWifiIcon(false);
   break;
 
   default:
+    displayTemperature(_temperature, _errorCode);
     break;
   }
 
   // Display relay state (white dot or circle in bottom right)
+
   if (_output)
   {
     display.fillCircle(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10, 5, SSD1306_WHITE); // Glowing dot effect

@@ -31,11 +31,11 @@ void deviceUpdate()
   }
   else
   {
-    //Serial.println("Client disconnected");
+    // Serial.println("Client disconnected");
   }
 
   // Update the OLED display
-  updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), digitalRead(SSR_PIN), errorCode);
+  updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), Heater->getStatusBool(), errorCode);
 }
 
 /* ------------------- Increment Timer to schedule events ------------------- */
@@ -162,23 +162,6 @@ void loop()
   /*                                 IoT Device                                 */
   /* -------------------------------------------------------------------------- */
 
-  /* --------------------------------- 1s task -------------------------------- */
-  if (timerCounter % (1000 / 10) == 0)
-  {
-    /* -------------------- Verify Temperature Sensore Faults ------------------- */
-    if (!verifySensor())
-      errorCode = E01_SENSOR_ERROR;
-
-    /* ----------------------------- Update Display ----------------------------- */
-    //updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), relayOn);
-
-    /* ------------------------ Update Temperature entity ----------------------- */
-    TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
-
-    /* -------------------------- Send update to HassIO ------------------------- */
-    deviceUpdate();
-  }
-
   /* ------------------------- check for any button presses event ------------------------ */
   for (int i = 0; i < numButtons; i++)
   {
@@ -206,6 +189,22 @@ void loop()
         else
           actualSetpoint -= actualSetpointModule5; // set to the next multiple of 5
       }
+
+      /* ------------------------- CNTR Button Long Press ------------------------- */
+      if (2 == i && longPresses[i])
+      {
+        Serial.println(Heater->getStatus() + "Payload On:" + Heater->getPayloadOn() + "Payload Off:" + Heater->getPayloadOff());
+
+        if (Heater->getStatus() == Heater->getPayloadOn())
+        {
+          Heater->setStatus(false); // disable heater
+        }
+        else
+        {
+          Heater->setStatus(true); // enable heater
+        }
+      }
+
       /* ----------------------------- Limit Setpoint ----------------------------- */
       actualSetpoint = constrain(actualSetpoint, SETPOINT_MIN, SETPOINT_MAX);
 
@@ -221,18 +220,58 @@ void loop()
     }
 
     /* ------------------------------- Reset Flags ------------------------------ */
-    singlePresses[i]  = false;
-    doublePresses[i]  = false;
-    longPresses[i]    = false;
-    longReleases[i]   = false;
+    singlePresses[i] = false;
+    doublePresses[i] = false;
+    longPresses[i] = false;
+    longReleases[i] = false;
   }
 
-  /* -------------------------- Check Heating enable -------------------------- */
-  if ((errorCode == E00_NO_ERROR || errorCode == E04_COMM_ERROR) && Heater->getStatus() == Heater->getPayloadOn()){
-    digitalWrite(SSR_PIN, HIGH);
-  } else {
-    digitalWrite(SSR_PIN, LOW);
+  /* --------------------------------- 5s Task -------------------------------- */
+  if (timerCounter % (1000 / 2) == 0)
+  {
+    /* -------------------------- Send update to HassIO ------------------------- */
+    deviceUpdate();
+  }
+
+  /* --------------------------------- 1s Task -------------------------------- */
+  if (timerCounter % (1000 / 10) == 0)
+  {
+    /* -------------------- Verify Temperature Sensore Faults ------------------- */
+    if (!verifySensor())
+      errorCode = E01_SENSOR_ERROR;
+    else{
+      /* ------------------------ Update Temperature entity ----------------------- */
+      TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
+    }     
+   
+    /* ----------------------------- Update Display ----------------------------- */
+    updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), Heater->getStatusBool(), errorCode);
+
   }  
+
+  /* ----------------------------- Control Heater ----------------------------- */
+  if ((errorCode == E00_NO_ERROR || errorCode == E04_COMM_ERROR) &&
+      Heater->getStatus() == Heater->getPayloadOn() &&
+      (float)atof(TemperatureSensor->getStatus().c_str()) < ((float)atof(TemperatureSetpoint->getStatus().c_str()) - HISTERESIS))
+  {
+    digitalWrite(SSR_PIN, HIGH); // Enable Heater
+  } 
+  else if (
+      (errorCode == E00_NO_ERROR && errorCode == E04_COMM_ERROR) ||
+      Heater->getStatus() == Heater->getPayloadOff() ||
+      (float)atof(TemperatureSensor->getStatus().c_str()) > ((float)atof(TemperatureSetpoint->getStatus().c_str()) + HISTERESIS))
+  {
+    digitalWrite(SSR_PIN, LOW); // Disable Heater
+  }
+
+  else if (errorCode != E00_NO_ERROR && errorCode != E04_COMM_ERROR){
+    digitalWrite(SSR_PIN, LOW); // Disable Heater;
+  } 
+  
+  else {
+    //do nothing
+  }
+
   /* -------------------------------------------------------------------------- */
   /* -------------------------------------------------------------------------- */
   /* -------------------------------------------------------------------------- */
@@ -240,6 +279,10 @@ void loop()
   /* -------------------------- Client loop functions ------------------------- */
   eth_mqttClient.loop();
   wifi_mqttClient.loop();
+
+
+
+
 }
 
 void IoT_device_init()
