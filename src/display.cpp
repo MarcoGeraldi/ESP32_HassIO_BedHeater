@@ -2,6 +2,8 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+unsigned long displayTimeout;
+
 const uint8_t wifiConnectedIcon[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xf0, 0x00, 0x30, 0x06, 0x00, 0xc0, 0x01, 0x80, 0x03, 
 	0xe0, 0x00, 0x08, 0x08, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe0, 0x00, 0x04, 0x00, 
@@ -27,7 +29,7 @@ void displayTemperature(double _temperature,  error_t _errorCode)
 {
   String tempString;
 
-  if (_errorCode == E00_NO_ERROR || _errorCode == E04_COMM_ERROR){
+  if ((_errorCode == E00_NO_ERROR || _errorCode == E04_COMM_ERROR) ){
     tempString = String(_temperature, 1); // Convert temperature to string with 1 decimal place
 
     // Add "°C" after the temperature
@@ -125,4 +127,12 @@ void updateDisplay(double _temperature, int _setpoint, bool _output, error_t _er
 
   // Update the display
   display.display();
+}
+
+void sleepDisplay() {
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
+}
+
+void wakeDisplay() {
+  display.ssd1306_command(SSD1306_DISPLAYON);
 }

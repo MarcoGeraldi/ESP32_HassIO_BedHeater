@@ -27,6 +27,9 @@ void deviceUpdate()
   }
   else if (wifi_mqttClient.connected())
   {
+    if (errorCode == E04_COMM_ERROR);
+      errorCode = E00_NO_ERROR;
+    
     myIoTdevice.update(wifi_mqttClient);
   }
   else
@@ -34,8 +37,21 @@ void deviceUpdate()
     // Serial.println("Client disconnected");
   }
 
-  // Update the OLED display
-  updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), Heater->getStatusBool(), errorCode);
+  /* -------------------- Verify Temperature Sensore Faults ------------------- */
+  if (!verifySensor() || (float)atof(TemperatureSensor->getStatus().c_str()) < 0 || (float)atof(TemperatureSensor->getStatus().c_str()) > 100)
+    errorCode = E01_SENSOR_ERROR;
+  else{
+    /* ------------------------ Update Temperature entity ----------------------- */
+    TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
+  } 
+
+  /* ----------------------------- Update Display ----------------------------- */    
+  if (displayTimeout < SLEEP_TIMEOUT){
+    wakeDisplay();
+    updateDisplay((float)atof(TemperatureSensor->getStatus().c_str()), atoi(TemperatureSetpoint->getStatus().c_str()), Heater->getStatusBool(), errorCode);
+  } else {
+    sleepDisplay(); 
+  }
 }
 
 /* ------------------- Increment Timer to schedule events ------------------- */
@@ -171,6 +187,7 @@ void loop()
     {
       int actualSetpoint = atoi(TemperatureSetpoint->getStatus().c_str());
       int actualSetpointModule5 = actualSetpoint % 5;
+      displayTimeout = 0; //wake up display
 
       /* ------------------ Up button pressed - Increase Setpoint ----------------- */
       if (0 == i && singlePresses[i] || doublePresses[i])
@@ -201,7 +218,8 @@ void loop()
         }
         else
         {
-          Heater->setStatus(true); // enable heater
+          if (errorCode == E00_NO_ERROR || errorCode == E04_COMM_ERROR) 
+            Heater->setStatus(true); // enable heater
         }
       }
 
@@ -236,53 +254,57 @@ void loop()
   /* --------------------------------- 1s Task -------------------------------- */
   if (timerCounter % (1000 / 10) == 0)
   {
+    /* ------------------------ increment display timeout ----------------------- */
+    displayTimeout++;
+
     /* -------------------- Verify Temperature Sensore Faults ------------------- */
-    if (!verifySensor())
+    if (!verifySensor() || (float)atof(TemperatureSensor->getStatus().c_str()) < 0 || (float)atof(TemperatureSensor->getStatus().c_str()) > 100)
       errorCode = E01_SENSOR_ERROR;
     else{
       /* ------------------------ Update Temperature entity ----------------------- */
       TemperatureSensor->setStatus(thermo.temperature(RNOMINAL, RREF));
     }     
    
-    /* ----------------------------- Update Display ----------------------------- */
-    updateDisplay(thermo.temperature(RNOMINAL, RREF), atoi(TemperatureSetpoint->getStatus().c_str()), Heater->getStatusBool(), errorCode);
+    /* ----------------------------- Control Heater ----------------------------- */ 
+    if ((errorCode == E00_NO_ERROR || errorCode == E04_COMM_ERROR) &&
+        Heater->getStatus() == Heater->getPayloadOn() &&
+        (float)atof(TemperatureSensor->getStatus().c_str()) < ((float)atof(TemperatureSetpoint->getStatus().c_str()) - HISTERESIS))
+    {
+      digitalWrite(SSR_PIN, HIGH); // Enable Heater
+    } 
+    else if (
+        (errorCode == E00_NO_ERROR && errorCode == E04_COMM_ERROR) ||
+        Heater->getStatus() == Heater->getPayloadOff() ||
+        (float)atof(TemperatureSensor->getStatus().c_str()) > ((float)atof(TemperatureSetpoint->getStatus().c_str()) + HISTERESIS))
+    {
+      digitalWrite(SSR_PIN, LOW); // Disable Heater
+    }
 
+    else if (errorCode != E00_NO_ERROR && errorCode != E04_COMM_ERROR){
+      Heater->setStatus(false);
+      digitalWrite(SSR_PIN, LOW); // Disable Heater;
+    } 
+    
+    else {
+      //do nothing
+    }
+
+    /* ----------------------------- Update Display ----------------------------- */    
+    if (displayTimeout < SLEEP_TIMEOUT){
+      wakeDisplay();
+      updateDisplay((float)atof(TemperatureSensor->getStatus().c_str()), atoi(TemperatureSetpoint->getStatus().c_str()), Heater->getStatusBool(), errorCode);
+    } else {
+      sleepDisplay(); 
+    }
+    
+    
   }  
 
-  /* ----------------------------- Control Heater ----------------------------- */
-  if ((errorCode == E00_NO_ERROR || errorCode == E04_COMM_ERROR) &&
-      Heater->getStatus() == Heater->getPayloadOn() &&
-      (float)atof(TemperatureSensor->getStatus().c_str()) < ((float)atof(TemperatureSetpoint->getStatus().c_str()) - HISTERESIS))
-  {
-    digitalWrite(SSR_PIN, HIGH); // Enable Heater
-  } 
-  else if (
-      (errorCode == E00_NO_ERROR && errorCode == E04_COMM_ERROR) ||
-      Heater->getStatus() == Heater->getPayloadOff() ||
-      (float)atof(TemperatureSensor->getStatus().c_str()) > ((float)atof(TemperatureSetpoint->getStatus().c_str()) + HISTERESIS))
-  {
-    digitalWrite(SSR_PIN, LOW); // Disable Heater
-  }
 
-  else if (errorCode != E00_NO_ERROR && errorCode != E04_COMM_ERROR){
-    digitalWrite(SSR_PIN, LOW); // Disable Heater;
-  } 
-  
-  else {
-    //do nothing
-  }
-
-  /* -------------------------------------------------------------------------- */
-  /* -------------------------------------------------------------------------- */
-  /* -------------------------------------------------------------------------- */
 
   /* -------------------------- Client loop functions ------------------------- */
   eth_mqttClient.loop();
   wifi_mqttClient.loop();
-
-
-
-
 }
 
 void IoT_device_init()
@@ -305,8 +327,10 @@ void IoT_device_init()
     myIoTdevice.configure(eth_mqttClient); // Update device configuration
   else if (wifi_mqttClient.connected())
     myIoTdevice.configure(wifi_mqttClient); // Update device configuration
-  else
+  else{
     Serial.println("Failed to send Device Configuration via MQTT. Client disconnected.");
+    errorCode = E04_COMM_ERROR;
+  }
 }
 
 void MQTT_callback(char *topic, byte *message, unsigned int length)
@@ -345,6 +369,7 @@ void MQTT_callback(char *topic, byte *message, unsigned int length)
   }
 
   /* -------------------------- update device status -------------------------- */
+  displayTimeout = 0;
   deviceUpdate();
 }
 
@@ -410,6 +435,7 @@ void wm_init(bool _reset)
   else
   {
     Serial.println("Failed to connect");
+    errorCode = E04_COMM_ERROR;
   }
 
   // set config save notify callback

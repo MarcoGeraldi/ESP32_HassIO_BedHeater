@@ -9,9 +9,9 @@
 /* -------------------------------------------------------------------------- */
 /*                                   Macros                                   */
 /* -------------------------------------------------------------------------- */
-#define BTN_UP_PIN   5
-#define BTN_DOWN_PIN 15 
-#define BTN_CNTR_PIN 18 
+#define BTN_UP_PIN   18
+#define BTN_DOWN_PIN 5 
+#define BTN_CNTR_PIN 15 
 #define SSR_PIN      2
 
 #define numButtons 3
